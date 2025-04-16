@@ -10,7 +10,7 @@ dependencies = [
     "opencv-python",
     "matplotlib",
     "numpy",
-    "gym",
+    "gym>=0.26.2",
 ]
 
 [project.optional-dependencies]

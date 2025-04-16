@@ -107,6 +107,28 @@ def save_h5_file(h5_file_path: str, dataset_dict: dict):
                     else:
                         group.create_dataset(category, data=category_data)
 
+def load_h5_file(h5_file_path: str) -> dict:
+    dataset_dict = {'steps': []}
+    
+    with h5py.File(h5_file_path, 'r') as f:
+        for step_name in sorted(f.keys(), key=lambda x: int(x.split('_')[1])):
+            step_group = f[step_name]
+            step_data = {}
+
+            for category in step_group:
+                category_item = step_group[category]
+                if isinstance(category_item, h5py.Group):
+                    category_dict = {}
+                    for key in category_item:
+                        category_dict[key] = category_item[key][()]
+                    step_data[category] = category_dict
+                else:
+                    step_data[category] = category_item[()]
+            
+            dataset_dict['steps'].append(step_data)
+    
+    return dataset_dict
+
 
 def print_h5_file(file_path):
     """

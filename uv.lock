@@ -1274,7 +1274,7 @@ application = [
 
 [package.metadata]
 requires-dist = [
-    { name = "gym" },
+    { name = "gym", specifier = ">=0.26.2" },
     { name = "h5py" },
     { name = "lerobot", marker = "extra == 'application'", git = "https://github.com/huggingface/lerobot.git" },
     { name = "matplotlib" },
