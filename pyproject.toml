@@ -14,10 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-lerobot = ["lerobot]
-
-[tool.uv.sources]
-lerobot = { git = "https://github.com/huggingface/lerobot" }
+lerobot = ["lerobot @ git+https://github.com/huggingface/lerobot"]
 
 [build-system]
 requires = ["hatchling"]
