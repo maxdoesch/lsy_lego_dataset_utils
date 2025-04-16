@@ -6,6 +6,7 @@ import shutil
 import h5py
 import yaml
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Dict, Any, List
 
 def duplicate_dataset(old_dataset_path: str, new_dataset_path: str):
@@ -32,11 +33,11 @@ def dump_metadata(episode_path: str, metadata: dict):
     with open(metadata_path, "w") as f:
         json.dump(metadata, f, indent=4)
 
-def save_metadata(self, path, steps_per_episode):
+def save_metadata(path, steps_per_episode, logging_frequency, data_collector):
         metadata = {
             "episode_steps": steps_per_episode,
-            "logging_frequency": self.logging_frequency,
-            "data_collector": self.data_collector,
+            "logging_frequency": logging_frequency,
+            "data_collector": data_collector,
             "collection_time": datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S")
         }
     

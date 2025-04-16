@@ -9,9 +9,18 @@ dependencies = [
     "h5py",
     "opencv-python",
     "matplotlib",
-    "lerobot",
     "numpy",
+    "gym",
 ]
+
+[tool.uv]
+default-groups = ["applications", "utilities"]
+
+[dependency-groups]
+applications = [
+  "lerobot"
+]
+utilities = []
 
 [tool.uv.sources]
 lerobot = { git = "https://github.com/huggingface/lerobot" }
