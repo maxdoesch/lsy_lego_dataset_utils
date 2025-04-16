@@ -4,7 +4,7 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
-import utils
+import lsy_lego_dataset_utils.utils
 
 class EpisodeVisualizer:
     def __init__(self, settings: dict):
