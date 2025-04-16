@@ -13,14 +13,8 @@ dependencies = [
     "gym",
 ]
 
-[tool.uv]
-default-groups = ["applications", "utilities"]
-
-[dependency-groups]
-applications = [
-  "lerobot"
-]
-utilities = []
+[project.optional-dependencies]
+lerobot = ["lerobot]
 
 [tool.uv.sources]
 lerobot = { git = "https://github.com/huggingface/lerobot" }
