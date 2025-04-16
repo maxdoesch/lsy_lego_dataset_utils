@@ -4,7 +4,7 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
-import lsy_lego_dataset_utils.utils
+import lsy_lego_dataset_utils.utils as utils
 
 class EpisodeVisualizer:
     def __init__(self, settings: dict):
@@ -97,7 +97,7 @@ class EpisodeVisualizer:
             self.gripper_action.append(step['action']['gripper'])
         else:
             self.gripper_action = None
-        self.caption = str(step['instruction'].decode())
+        self.caption = step['instruction']
 
         self._update_plot(self.episode_len - 1)
 
@@ -120,9 +120,9 @@ class EpisodeVisualizer:
             self.axs[axis_idx].plot(self.actions_cartesian, linestyle='dashed', label=cartesian_action_labels)
 
         if self.gripper in ['action', 'both'] and self.gripper_action is not None:
-            self.axs[axis_idx].step(range(len(self.gripper_action)), self.gripper_action * np.max(self.actions_cartesian), where='pre', label="Gripper")
+            self.axs[axis_idx].step(range(len(self.gripper_action)), np.array(self.gripper_action) * np.max(self.actions_cartesian), where='pre', label="Gripper")
         if self.gripper in ['state', 'both']:
-            self.axs[axis_idx].plot(self.gripper_position * np.max(self.actions_cartesian) / np.max(self.gripper_position), label="Gripper")
+            self.axs[axis_idx].plot(np.array(self.gripper_position) * np.max(self.actions_cartesian) / np.max(self.gripper_position), label="Gripper")
 
         self.axs[axis_idx].set_title(f"Cartesian {self.plot_title}")
         self.axs[axis_idx].legend(fontsize='small')
@@ -138,9 +138,9 @@ class EpisodeVisualizer:
             self.axs[axis_idx].plot(self.actions_joint, linestyle='dashed', label=joint_action_labels)
 
         if self.gripper in ['action', 'both'] and self.gripper_action is not None:
-            self.axs[axis_idx].step(range(len(self.gripper_action)), self.gripper_action * np.max(self.actions_joint), where='pre', label="Gripper")
+            self.axs[axis_idx].step(range(len(self.gripper_action)), np.array(self.gripper_action) * np.max(self.actions_joint), where='pre', label="Gripper")
         if self.gripper in ['state', 'both']:
-            self.axs[axis_idx].plot(self.gripper_position * np.max(self.actions_joint) / np.max(self.gripper_position), label="Gripper")
+            self.axs[axis_idx].plot(np.array(self.gripper_position) * np.max(self.actions_joint) / np.max(self.gripper_position), label="Gripper")
 
         self.axs[axis_idx].set_title(f"Joint {self.plot_title}")
         self.axs[axis_idx].legend(fontsize='small')
@@ -162,7 +162,11 @@ class EpisodeVisualizer:
             idx = 2 if self.modality == 'both' else 1
             self._make_joint_plot(idx)
 
-        plt.pause(0.001)
+        for ax in self.axs:
+            ax.relim()
+            ax.autoscale_view()
+
+        plt.pause(0.01)
 
 class DatasetVisualizer:
     def __init__(self, args):
