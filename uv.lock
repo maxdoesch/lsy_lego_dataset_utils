@@ -1193,7 +1193,7 @@ wheels = [
 [[package]]
 name = "lerobot"
 version = "0.1.0"
-source = { git = "https://github.com/huggingface/lerobot#768e36660d1408c71118a2760f831c037fbfa17d" }
+source = { git = "https://github.com/huggingface/lerobot.git#768e36660d1408c71118a2760f831c037fbfa17d" }
 dependencies = [
     { name = "av" },
     { name = "cmake" },
@@ -1267,8 +1267,8 @@ dependencies = [
     { name = "pyyaml" },
 ]
 
-[package.dev-dependencies]
-applications = [
+[package.optional-dependencies]
+application = [
     { name = "lerobot" },
 ]
 
@@ -1276,15 +1276,13 @@ applications = [
 requires-dist = [
     { name = "gym" },
     { name = "h5py" },
+    { name = "lerobot", marker = "extra == 'application'", git = "https://github.com/huggingface/lerobot.git" },
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "opencv-python" },
     { name = "pyyaml" },
 ]
-
-[package.metadata.requires-dev]
-applications = [{ name = "lerobot", git = "https://github.com/huggingface/lerobot" }]
-utilities = []
+provides-extras = ["application"]
 
 [[package]]
 name = "markupsafe"
