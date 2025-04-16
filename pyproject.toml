@@ -14,7 +14,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-lerobot = ["lerobot @ git+https://github.com/huggingface/lerobot"]
+application = ["lerobot"]
+
+[tool.uv.sources]
+lerobot = { git = "https://github.com/maxdoesch/lsy_lego_dataset_utils.git" }
 
 [build-system]
 requires = ["hatchling"]
