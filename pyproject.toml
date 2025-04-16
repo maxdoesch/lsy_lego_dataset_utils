@@ -1,0 +1,21 @@
+[project]
+name = "lsy-lego-dataset-utils"
+version = "0.1.0"
+description = "A repository containing utilites for working with the lego dataset format."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "PyYAML",
+    "h5py",
+    "opencv-python",
+    "matplotlib",
+    "lerobot",
+    "numpy",
+]
+
+[tool.uv.sources]
+lerobot = { git = "https://github.com/huggingface/lerobot" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
