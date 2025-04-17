@@ -91,7 +91,7 @@ class EpisodeVisualizer:
         if self.modality in ['cartesian', 'both']:
             self.actions_cartesian.append(step['action']['cartesian_position_delta'])
         self.states_cartesian.append(step['observation']['cartesian_position'])
-        if self.modality in ['cartesian', 'both']:
+        if self.modality in ['joint', 'both']:
             self.actions_joint.append(step['action']['joint_position_delta'])
         self.states_joint.append(step['observation']['joint_position'])
         self.gripper_position.append(step['observation']['gripper_position'])
