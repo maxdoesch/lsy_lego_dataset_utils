@@ -88,9 +88,11 @@ class EpisodeVisualizer:
         self.episode_len += 1
         self.third_person_images.append(step['observation']['third_person_image'])
         self.wrist_images.append(step['observation']['wrist_image'])
-        self.actions_cartesian.append(step['action']['cartesian_position_delta'])
+        if self.modality in ['cartesian', 'both']:
+            self.actions_cartesian.append(step['action']['cartesian_position_delta'])
         self.states_cartesian.append(step['observation']['cartesian_position'])
-        self.actions_joint.append(step['action']['joint_position_delta'])
+        if self.modality in ['cartesian', 'both']:
+            self.actions_joint.append(step['action']['joint_position_delta'])
         self.states_joint.append(step['observation']['joint_position'])
         self.gripper_position.append(step['observation']['gripper_position'])
         if 'gripper' in step['action']:
