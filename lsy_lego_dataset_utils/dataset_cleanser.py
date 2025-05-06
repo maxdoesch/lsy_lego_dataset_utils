@@ -22,6 +22,8 @@ class DatasetCleanser():
     def _create_job_list(self, configs: dict):
         self.job_list = [(self._check_folder_structure, {})]
 
+        if 'shift_gripper' in configs:
+            self.job_list.append((self._shift_gripper, configs['shift_gripper']))
         if 'remove_inactivity' in configs:
             self.job_list.append((self._remove_inactivity, {}))
             self.job_list.append((self._rename_steps, {}))
@@ -32,7 +34,39 @@ class DatasetCleanser():
             self.job_list.append((self._relabel_episode, configs['relabel_episode']))
         if 'resize_observation' in configs:
             self.job_list.append((self._resize_observation, configs['resize_observation']))
-    
+
+    def _shift_gripper(self, episode_path: str, args: dict):
+        shift_steps = args['shift_steps']
+        trajectory_path = os.path.join(episode_path, 'trajectory.h5')
+        
+        with h5py.File(trajectory_path, 'r+') as episode:
+            steps = sorted([key for key in episode.keys() if key.startswith('step_')], 
+                        key=lambda x: int(x.split('_')[1]))
+            if not steps:
+                raise ValueError("No steps found in episode data.")
+            
+            gripper_positions = np.array([episode[step]['observation']['gripper_position'][()] for step in steps])
+            gripper_action = np.array([episode[step]['action']['gripper'][()] for step in steps])
+
+            if shift_steps > 0:
+                gripper_positions = np.concatenate(
+                    (np.tile(gripper_positions[0:1], (shift_steps)), gripper_positions[:-shift_steps])
+                )
+                gripper_action = np.concatenate(
+                    (np.tile(gripper_action[0:1], (shift_steps)), gripper_action[:-shift_steps])
+                )
+            elif shift_steps < 0:
+                gripper_positions = np.concatenate(
+                    (gripper_positions[-shift_steps:], np.tile(gripper_positions[-1:], (-shift_steps)))
+                )
+                gripper_action = np.concatenate(
+                    (gripper_action[-shift_steps:], np.tile(gripper_action[-1:], (-shift_steps)))
+                )
+
+            for step in steps:
+                episode[step]['observation']['gripper_position'][()] = gripper_positions[steps.index(step)]
+                episode[step]['action']['gripper'][()] = gripper_action[steps.index(step)]
+
     def _resize_observation(self, episode_path: str, args: dict):
         target_resolutions = args['target_resolution']
         trajectory_path = os.path.join(episode_path, 'trajectory.h5')
@@ -88,6 +122,7 @@ class DatasetCleanser():
 
             actions_joint = np.array([episode[step]['action']['joint_position_delta'][()] for step in steps])
             gripper_positions = np.array([episode[step]['observation']['gripper_position'][()] for step in steps])
+            gripper_actions = np.array([episode[step]['action']['gripper'][()] for step in steps])
             
             threshold = 1e-3
             active_steps = []
@@ -95,8 +130,9 @@ class DatasetCleanser():
             for i in range(len(steps)):
                 is_action_active = not np.all(np.abs(actions_joint[i]) < threshold)
                 is_gripper_moving = i == (len(gripper_positions) - 1) or not np.allclose(gripper_positions[i+1], gripper_positions[i], atol=threshold)
+                is_gripper_action_active = i == (len(gripper_actions) - 1) or not np.allclose(gripper_actions[i+1], gripper_actions[i], atol=threshold)
                 
-                if is_action_active or is_gripper_moving:
+                if is_action_active or is_gripper_moving or is_gripper_action_active:
                     active_steps.append(steps[i])
             
             for step in list(episode.keys()):
@@ -263,7 +299,8 @@ class CreateJob():
             'dataset_path_original': self.dataset_path_original,
             'dataset_path_modified': dataset_path_modified,
         }
-
+        if args.shift_gripper is not None:
+            config['shift_gripper'] = {'shift_steps': args.shift_gripper}
         if args.inactivity is not None and args.inactivity:
             config['remove_inactivity'] = {}
         if args.subsample is not None:
@@ -291,6 +328,7 @@ def main():
     parser.add_argument("--relabel", type=str, nargs='+', required=False, help="Relabel instructions with the given label(s).")
     parser.add_argument("--dataset_path", type=str, default=None, required=False, help="Path to the dataset directory.")
     parser.add_argument("--resize", type=str, required=False, help="Resize camera images. Syntax: --resize \"{'cam_name': (width, height), ...}\"")
+    parser.add_argument("--shift_gripper", type=int, default=0, required=False, help="Shift gripper position by given time steps.")
     
     args = parser.parse_args()
     dataset_cleanser = CreateJob().create_job_from_args(args)

@@ -11,6 +11,8 @@ dependencies = [
     "matplotlib",
     "numpy",
     "gym>=0.26.2",
+    "absl-py",
+    "tdqm"
 ]
 
 [project.optional-dependencies]

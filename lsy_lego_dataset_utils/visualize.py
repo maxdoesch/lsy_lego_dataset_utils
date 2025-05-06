@@ -103,6 +103,18 @@ class EpisodeVisualizer:
 
         self._update_plot(self.episode_len - 1)
 
+    def reset_visualization(self):
+        self.episode_len = 0
+        self.third_person_images = []
+        self.wrist_images = []
+        self.actions_cartesian = []
+        self.states_cartesian = []
+        self.actions_joint = []
+        self.states_joint = []
+        self.gripper_position = []
+        self.gripper_action = []
+        self.caption = ""
+
     def _make_image_plot(self, time_step: int, axis_idx: int):
         assert time_step < self.episode_len, f"Time step {time_step} exceeds episode length {self.episode_len}."
 
