@@ -124,40 +124,75 @@ class EpisodeVisualizer:
         self.axs[axis_idx].imshow(combined_image)
         self.axs[axis_idx].axis('off')
 
-    def _make_cartesian_plot(self, axis_idx: int):
-        if self.type in ['state', 'both']:
-            cartesian_state_labels = [r'$x$', r'$y$', r'$z$', r'$\theta_1$', r'$\theta_2$', r'$\theta_3$']
-            self.axs[axis_idx].plot(self.states_cartesian, label=cartesian_state_labels)
-
-        if self.type in ['action', 'both']:
-            cartesian_action_labels = [r'$\Delta x$', r'$\Delta y$', r'$\Delta z$', r'$\Delta \theta_1$', r'$\Delta \theta_2$', r'$\Delta \theta_3$']
-            self.axs[axis_idx].plot(self.actions_cartesian, linestyle='dashed', label=cartesian_action_labels)
-
-        if self.gripper in ['action', 'both'] and self.gripper_action is not None:
-            self.axs[axis_idx].step(range(len(self.gripper_action)), np.array(self.gripper_action) * np.max(self.actions_cartesian), where='pre', label="Gripper")
-        if self.gripper in ['state', 'both']:
-            self.axs[axis_idx].plot(np.array(self.gripper_position) * np.max(self.actions_cartesian) / np.max(self.gripper_position), label="Gripper")
-
-        self.axs[axis_idx].set_title(f"Cartesian {self.plot_title}")
-        self.axs[axis_idx].legend(fontsize='small')
-        self.axs[axis_idx].grid()
-
     def _make_joint_plot(self, axis_idx: int):
+        ax = self.axs[axis_idx]
+
         if self.type in ['state', 'both']:
             joint_state_labels = [fr'$\theta_{i}$' for i in range(1, 8)]
-            self.axs[axis_idx].plot(self.states_joint, label=joint_state_labels)
+            ax.plot(self.states_joint, label=joint_state_labels)
 
         if self.type in ['action', 'both']:
             joint_action_labels = [fr'$\Delta \theta_{i}$' for i in range(1, 8)]
-            self.axs[axis_idx].plot(self.actions_joint, linestyle='dashed', label=joint_action_labels)
+            ax.plot(self.actions_joint, linestyle='dashed', label=joint_action_labels)
 
-        if self.gripper in ['action', 'both'] and self.gripper_action is not None:
-            self.axs[axis_idx].step(range(len(self.gripper_action)), np.array(self.gripper_action) * np.max(self.actions_joint), where='pre', label="Gripper")
-        if self.gripper in ['state', 'both']:
-            self.axs[axis_idx].plot(np.array(self.gripper_position) * np.max(self.actions_joint) / np.max(self.gripper_position), label="Gripper")
+        if (self.gripper in ['action', 'both'] and self.gripper_action is not None) or \
+        (self.gripper in ['state', 'both'] and self.gripper_position is not None):
+            ax_gripper = ax.twinx()
+            ax_gripper.set_ylim(-1, 1)
 
-        self.axs[axis_idx].set_title(f"Joint {self.plot_title}")
-        self.axs[axis_idx].legend(fontsize='small')
+            if self.gripper in ['action', 'both'] and self.gripper_action is not None:
+                ax_gripper.step(
+                    range(len(self.gripper_action)),
+                    self.gripper_action,
+                    where='pre',
+                    label=r'$\Delta \mathrm{grip}$',
+                    color='tab:green'
+                )
+
+            if self.gripper in ['state', 'both'] and self.gripper_position is not None:
+                ax_gripper.plot(
+                    self.gripper_position,
+                    label=r'$\mathrm{grip}$',
+                    color='tab:orange'
+                )
+
+            lines, labels = ax.get_legend_handles_labels()
+            grip_lines, grip_labels = ax_gripper.get_legend_handles_labels()
+            ax_gripper.legend(lines + grip_lines, labels + grip_labels, fontsize='small')
+        else:
+            ax.legend(fontsize='small')
+
+        ax.set_title(f"Joint {self.plot_title}")
+        ax.grid()
+
+    def _make_cartesian_plot(self, axis_idx: int):
+        ax = self.axs[axis_idx]
+
+        if self.type in ['state', 'both']:
+            cartesian_state_labels = [r'$x$', r'$y$', r'$z$', r'$\theta_1$', r'$\theta_2$', r'$\theta_3$']
+            ax.plot(self.states_cartesian, label=cartesian_state_labels)
+
+        if self.type in ['action', 'both']:
+            cartesian_action_labels = [r'$\Delta x$', r'$\Delta y$', r'$\Delta z$', r'$\Delta \theta_1$', r'$\Delta \theta_2$', r'$\Delta \theta_3$']
+            ax.plot(self.actions_cartesian, linestyle='dashed', label=cartesian_action_labels)
+
+        if (self.gripper in ['action', 'both'] and self.gripper_action is not None) or (self.gripper in ['state', 'both'] and self.gripper_position is not None):
+            ax_gripper = ax.twinx()
+            ax_gripper.set_ylim(-1, 1)
+
+            if self.gripper in ['action', 'both'] and self.gripper_action is not None:
+                ax_gripper.step(range(len(self.gripper_action)), self.gripper_action, where='pre', label=r'$\Delta \mathrm{grip}$', color='tab:green')
+
+            if self.gripper in ['state', 'both'] and self.gripper_position is not None:
+                ax_gripper.plot(self.gripper_position, label=r'$\mathrm{grip}$', color='tab:orange')
+
+            lines, labels = ax.get_legend_handles_labels()
+            grip_lines, grip_labels = ax_gripper.get_legend_handles_labels()
+            ax_gripper.legend(lines + grip_lines, labels + grip_labels, fontsize='small')
+        else:
+            self.axs[axis_idx].legend(fontsize='small')
+
+        self.axs[axis_idx].set_title(f"Cartesian {self.plot_title}")
         self.axs[axis_idx].grid()
 
     def _make_vertical_line(self, time_step: int, axis_idx: int):

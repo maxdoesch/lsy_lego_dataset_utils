@@ -51,7 +51,7 @@ class LegoDatasetConverter:
 
         self.cameras = {
             "third_person_image": (256, 256, 3),
-            "wrist_image": (128, 128, 3),
+            "wrist_image": (256, 256, 3),
         }
 
         self.dimensions = [

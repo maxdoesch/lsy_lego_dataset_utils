@@ -14,7 +14,7 @@ class DatasetCleanser():
             if (dataset_path not in configs):
                 raise ValueError(f"No '{dataset_path}' found in configs.")
             
-        self.dataset_path_original = configs['dataset_path_original']
+        self.dataset_path = configs['dataset_path_original']
         self.dataset_path_modified = configs['dataset_path_modified']
 
         self._create_job_list(configs)
@@ -34,6 +34,8 @@ class DatasetCleanser():
             self.job_list.append((self._relabel_episode, configs['relabel_episode']))
         if 'resize_observation' in configs:
             self.job_list.append((self._resize_observation, configs['resize_observation']))
+        if 'split_dataset' in configs:
+            self.job_list.append((self._split_dataset_by_instruction, {}))
 
     def _shift_gripper(self, episode_path: str, args: dict):
         shift_steps = args['shift_steps']
@@ -249,6 +251,34 @@ class DatasetCleanser():
         if not os.path.isfile(trajectory_file):
             raise FileNotFoundError(f"Missing file: {trajectory_file}")
         
+    def _split_dataset_by_instruction(self, episode_path: str, args: dict):
+
+        try:
+            trajectory_path = os.path.join(episode_path, 'trajectory.h5')
+            with h5py.File(trajectory_path, 'r') as episode:
+                steps = sorted(
+                    [key for key in episode.keys() if key.startswith('step_')],
+                    key=lambda x: int(x.split('_')[1])
+                )
+                if not steps:
+                    raise ValueError("No steps found.")
+
+                instruction = episode[steps[0]]['instruction'][()].decode() \
+                    if isinstance(episode[steps[0]]['instruction'][()], bytes) \
+                    else episode[steps[0]]['instruction'][()]
+
+        except Exception as e:
+            print(f"Could not read instruction from {episode_path}: {e}")
+
+        dest_dir = os.path.join(self.dataset_path_modified, f'dataset_{instruction}')
+        os.makedirs(dest_dir, exist_ok=True)
+
+        new_ep_idx = len([f for f in os.listdir(dest_dir) if f.startswith('episode_')])
+        dest_path = os.path.join(dest_dir, f"episode_{new_ep_idx}")
+        shutil.move(episode_path, dest_path)
+
+        print(f"Added episode to subfolder: {self.dataset_path_modified}.")
+        
     def _reorder_episodes(self, dataset_path: str):
         """Reorders episode folders to fill in missing indices."""
         episode_indices = sorted(int(f.split('_')[1]) for f in os.listdir(dataset_path) if f.startswith('episode_'))
@@ -257,6 +287,30 @@ class DatasetCleanser():
             current_name = f"episode_{episode_index}"
             if expected_name != current_name:
                 os.rename(os.path.join(dataset_path, current_name), os.path.join(dataset_path, expected_name))
+
+    def combine_datasets(self, dataset_path: str):
+        """
+        Flattens nested datasets by moving all episode folders from subdirectories
+        under dataset_path_original into dataset_path_modified as a single sequence.
+        """             
+        subfolders = [os.path.join(dataset_path, f) for f in os.listdir(dataset_path) if f.startswith("dataset_") and os.path.isdir(os.path.join(dataset_path, f))]
+
+        if len(subfolders) == 0:
+            return
+
+        episode_counter = 0
+        for subfolder in subfolders:
+            episodes = [os.path.join(subfolder, f) for f in os.listdir(subfolder) if f.startswith("episode_") and os.path.isdir(os.path.join(subfolder, f))]
+
+            for ep in sorted(episodes):
+                new_name = f"episode_{episode_counter}"
+                new_path = os.path.join(dataset_path, new_name)
+                shutil.copytree(ep, new_path)
+                episode_counter += 1
+            
+            shutil.rmtree(subfolder)
+
+        print(f"Combined datasets into {self.dataset_path_modified} with {episode_counter} episodes.")
 
     def check_episode(self, episode_path: str):
         """Checks the folder structure and deletes the episode if it is invalid."""
@@ -270,7 +324,9 @@ class DatasetCleanser():
 
     def check_all_episodes(self):
         """Checks all episodes in the dataset and removes invalid ones."""
-        utils.duplicate_dataset(self.dataset_path_original, self.dataset_path_modified)
+        utils.duplicate_dataset(self.dataset_path, self.dataset_path_modified)
+
+        self.combine_datasets(self.dataset_path_modified)
 
         episode_paths = [os.path.join(self.dataset_path_modified, f) for f in os.listdir(self.dataset_path_modified) if f.startswith('episode_')]
         if not episode_paths:
@@ -289,6 +345,8 @@ class CreateJob():
     def create_job_from_args(self, args) -> DatasetCleanser:
         if args.dataset_path is not None:
             self.dataset_path_original = args.dataset_path
+
+        self.dataset_path_original = self.dataset_path_original.rstrip('/')
         
         base_dir = os.path.dirname(self.dataset_path_original)
         base_name = os.path.basename(self.dataset_path_original)
@@ -299,6 +357,8 @@ class CreateJob():
             'dataset_path_original': self.dataset_path_original,
             'dataset_path_modified': dataset_path_modified,
         }
+        if args.split_dataset is not None and args.split_dataset:
+            config['split_dataset'] = {}
         if args.shift_gripper is not None:
             config['shift_gripper'] = {'shift_steps': args.shift_gripper}
         if args.inactivity is not None and args.inactivity:
@@ -329,7 +389,8 @@ def main():
     parser.add_argument("--dataset_path", type=str, default=None, required=False, help="Path to the dataset directory.")
     parser.add_argument("--resize", type=str, required=False, help="Resize camera images. Syntax: --resize \"{'cam_name': (width, height), ...}\"")
     parser.add_argument("--shift_gripper", type=int, default=0, required=False, help="Shift gripper position by given time steps.")
-    
+    parser.add_argument('--split_dataset', action='store_true', required=False, help="Split the dataset based on the language instruction")
+
     args = parser.parse_args()
     dataset_cleanser = CreateJob().create_job_from_args(args)
     dataset_cleanser.check_all_episodes()
