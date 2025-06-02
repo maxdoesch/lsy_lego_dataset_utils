@@ -2,13 +2,6 @@
 Script to convert Lego Dataset hdf5 data to the LeRobot dataset format.
 
 Adapted from https://github.com/Physical-Intelligence/openpi/blob/main/examples/aloha_real/convert_aloha_data_to_lerobot.py
-
-Example usage:
-python data_collector/scripts/convert_lego_dataset_to_lerobot.py \
-    --dataset_path=/path/to/raw/data \
-    --repo_id=<org>/<dataset-name> \
-    --task=lego_task \
-    --robot_type=franka
 """
 
 import os
@@ -28,19 +21,18 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_string("dataset_path", None, "Path to the raw dataset directory.")
 flags.DEFINE_string("repo_id", "lego_dataset", "Hugging Face repo ID to save the dataset under.")
-flags.DEFINE_string("task", "lego_task", "Task name to associate with the dataset.")
-flags.DEFINE_string("robot_type", "franka", "Type of robot (e.g., franka).")
+flags.DEFINE_enum("action_type", "cartesian", ["cartesian", "joint"], "Action type used (cartesian/joint)")
 
 flags.mark_flag_as_required("dataset_path")
 
-
 class LegoDatasetConverter:
-    def __init__(self, dataset_path: str, repo_id: str, robot_type: str):
+    def __init__(self, dataset_path: str, repo_id: str, robot_type: str, action_type: str):
 
         self.dataset_path = dataset_path
         self.repo_id = repo_id
         self.robot_type = robot_type
-
+        self.action_type = action_type
+        
         self.episode_paths = [
             os.path.join(self.dataset_path, f)
             for f in os.listdir(self.dataset_path)
@@ -53,16 +45,12 @@ class LegoDatasetConverter:
             "third_person_image": (256, 256, 3),
             "wrist_image": (256, 256, 3),
         }
+        self.camera_key_map = {
+            "third_person_image": 'primary',
+            'wrist_image': 'wrist'
+        }
 
-        self.dimensions = [
-            "x",
-            "y",
-            "z",
-            "roll",
-            "pitch",
-            "yaw",
-            "gripper",
-        ]
+        self.joint_dims = [f'joint_{idx}' for idx in range(7)] + ['gripper']
 
     def create_empty_dataset(self) -> LeRobotDataset:
         metadata_path = os.path.join(self.episode_paths[0], "metadata.json")
@@ -76,18 +64,26 @@ class LegoDatasetConverter:
         features = {
             "observation.state": {
                 "dtype": "float32",
-                "shape": (len(self.dimensions),),
-                "names": [self.dimensions],
-            },
-            "action": {
-                "dtype": "float32",
-                "shape": (len(self.dimensions),),
-                "names": [self.dimensions],
+                "shape": (len(self.joint_dims),),
+                "names": [self.joint_dims],
             },
         }
 
+        if self.action_type == "cartesian":
+            features["actions"] = {
+                "dtype": "float32",
+                "shape": (7,),
+                "names": ['cartesian_action'],
+            }
+        else:  # joint
+            features["actions"] = {
+                "dtype": "float32",
+                "shape": (8,),  # 7 joints + 1 gripper
+                "names": ['joint_action'],
+            }
+
         for cam, res in self.cameras.items():
-            features[f"observation.images.{cam}"] = {
+            features[f"observation.images.{self.camera_key_map[cam]}"] = {
                 "dtype": 'image',
                 "shape": res,
                 "names": ["height", "width", "channels"],
@@ -104,7 +100,7 @@ class LegoDatasetConverter:
             use_videos=False,
         )
 
-    def populate_dataset(self, dataset: LeRobotDataset, task: str) -> LeRobotDataset:
+    def populate_dataset(self, dataset: LeRobotDataset) -> LeRobotDataset:
         for ep_path in tqdm.tqdm(self.episode_paths):
             trajectory_path = os.path.join(ep_path, 'trajectory.h5')
 
@@ -116,34 +112,31 @@ class LegoDatasetConverter:
                 for step in steps:
                     gripper_position = episode[step]['observation']['gripper_position'][()]
                     gripper_position_array = np.array([gripper_position], dtype=np.float32)
-                    
+
                     if 'gripper' in episode[step]['action']:
-                        gripper_position_binarized = episode[step]['action']['gripper'][()]
-                        gripper_position_binarized_array = np.array([gripper_position_binarized], dtype=np.float32)
+                        gripper_action = episode[step]['action']['gripper'][()]
                     else:
-                        gripper_position_binarized = 1 if gripper_position > 0.1 else 0
-                        gripper_position_binarized_array = np.array([gripper_position_binarized], dtype=np.float32)
+                        gripper_action = 1 if gripper_position > 0.1 else 0
+                    gripper_action_array = np.array([gripper_action], dtype=np.float32)
 
                     frame = {
-                        "observation.state": np.concatenate(
-                            (
-                                episode[step]["observation"]["cartesian_position"][()],
-                                gripper_position_array,
-                            ),
-                            dtype=np.float32,
-                        ),
-                        "action": np.concatenate(
-                            (
-                                episode[step]["action"]["cartesian_position_delta"][()],
-                                gripper_position_binarized_array,
-                            ),
-                            dtype=np.float32,
-                        ),
-                        "task": task,
+                        "observation.state": np.concatenate((np.array(episode[step]["observation"]["joint_position"][()], dtype=np.float32), gripper_position_array)),
+                        "task": episode[step]['instruction'][()].decode(),
                     }
 
+                    if self.action_type == "cartesian":
+                        frame["actions"] = episode[step]["action"]["cartesian_position_delta"][()]
+                    else:
+                        frame["actions"] = np.concatenate(
+                            (
+                                episode[step]["action"]["joint_position_delta"][()],
+                                gripper_action_array,
+                            ),
+                            dtype=np.float32,
+                        )
+
                     for cam in self.cameras.keys():
-                        frame[f"observation.images.{cam}"] = episode[step]["observation"][cam][()]
+                        frame[f"observation.images.{self.camera_key_map[cam]}"] = episode[step]["observation"][cam][()]
 
                     dataset.add_frame(frame)
 
@@ -156,11 +149,12 @@ def main(_):
     converter = LegoDatasetConverter(
         dataset_path=FLAGS.dataset_path,
         repo_id=FLAGS.repo_id,
-        robot_type=FLAGS.robot_type,
+        robot_type='franka',
+        action_type=FLAGS.action_type
     )
 
     dataset = converter.create_empty_dataset()
-    converter.populate_dataset(dataset, task=FLAGS.task)
+    converter.populate_dataset(dataset)
 
 
 if __name__ == "__main__":
